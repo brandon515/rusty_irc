@@ -1,0 +1,16 @@
+[package]
+name = "rusty_irc"
+version = "0.1.0"
+authors = ["brandon"]
+
+[lib]
+name = "rusty_irc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rusty_irc_server"
+path = "src/main.rs"
+
+[dependencies]
+
+mio="0.5"
