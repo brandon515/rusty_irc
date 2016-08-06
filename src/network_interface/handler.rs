@@ -5,6 +5,9 @@ use mio::{
     Token,
     PollOpt,
 };
+use std::io::{
+    Read,
+};
 use mio::tcp::{
     TcpListener,
     TcpStream,
@@ -65,7 +68,7 @@ impl Handler for ServerHandler{
                 };
                 let ip = sock.peer_addr().unwrap();
                 let start_counter = self.token_counter;
-                let new_token = Token(self.token_counter);
+                let mut new_token = Token(self.token_counter);
                 //make sure the token is not taken (usually these would be bots or serious
                 //lurkers)
                 while self.client_list.contains_key(&new_token){
@@ -77,10 +80,10 @@ impl Handler for ServerHandler{
                         break;
                     }
                     self.token_counter = self.token_counter+1;
-                    let new_token = Token(self.token_counter);
+                    new_token = Token(self.token_counter);
                 }
                 //register a new client and tell someone if we're kicking someone out
-                match self.client_list.insert(new_token, sock){
+                match self.client_list.insert(new_token.clone(), sock){
                     //reset with an old used token this shouldn't happen unless the buffer is full
                     Some(old_value) => {
                         let info_string = format!("Client with the IP Address {:?} has been disconnected, buffer overflow", old_value.peer_addr());
@@ -103,7 +106,7 @@ impl Handler for ServerHandler{
                 //new client registration
                 match event_loop.register(self.client_list.get(&new_token).unwrap(), 
                                           new_token, 
-                                          EventSet::readable(), 
+                                          EventSet::readable() | EventSet::hup(), 
                                           PollOpt::edge() | PollOpt::oneshot()){
                     Ok(_)=>{
                         logging::log(logging::Level::INFO, &(format!("New client with IP Address {:?} has been registered", ip)));
@@ -116,10 +119,18 @@ impl Handler for ServerHandler{
             }
             //CLIENT CONNECTION
             client_token => {
-                logging::log(logging::Level::INFO, "HELLO FROM THE EVENT_LOOP!");
-                match event_loop.reregister(self.client_list.get(&new_token).unwrap(), 
-                                          new_token, 
-                                          EventSet::readable(), 
+                logging::log(logging::Level::INFO, &(format!("The event type is: {:?}", events)));
+                if events.contains(EventSet::hup()){
+                    return;
+                }
+                let mut stream = self.client_list.get_mut(&client_token).unwrap();
+                let mut input_string = String::new();
+                stream.read_to_string(&mut input_string);
+                logging::log(logging::Level::INFO, &input_string);
+                let ip = stream.peer_addr().unwrap();
+                match event_loop.reregister(stream,
+                                          client_token, 
+                                          EventSet::readable() | EventSet::hup(), 
                                           PollOpt::edge() | PollOpt::oneshot()){
                     Ok(_)=>{
                         logging::log(logging::Level::INFO, &(format!("client with IP Address {:?} has been reregistered", ip)));
