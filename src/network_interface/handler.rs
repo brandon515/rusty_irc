@@ -64,10 +64,24 @@ impl Handler for ServerHandler{
                     }
                 };
                 let ip = sock.peer_addr().unwrap();
+                let start_counter = self.token_counter;
                 let new_token = Token(self.token_counter);
+                //make sure the token is not taken (usually these would be bots or serious
+                //lurkers)
+                while self.client_list.contains_key(&new_token){
+                    if self.token_counter == usize::max_value(){
+                        self.token_counter = 0;
+                    }
+                    //the whole client list is full, time to kick somebody
+                    if self.token_counter == start_counter{
+                        break;
+                    }
+                    self.token_counter = self.token_counter+1;
+                    let new_token = Token(self.token_counter);
+                }
                 //register a new client and tell someone if we're kicking someone out
                 match self.client_list.insert(new_token, sock){
-                    //reset with an old used token, increment and keep trying
+                    //reset with an old used token this shouldn't happen unless the buffer is full
                     Some(old_value) => {
                         let info_string = format!("Client with the IP Address {:?} has been disconnected, buffer overflow", old_value.peer_addr());
                         logging::log(logging::Level::INFO, &info_string);
@@ -86,6 +100,7 @@ impl Handler for ServerHandler{
                         logging::log(logging::Level::INFO, "Registering new client");
                     }
                 };
+                //new client registration
                 match event_loop.register(self.client_list.get(&new_token).unwrap(), 
                                           new_token, 
                                           EventSet::readable(), 
