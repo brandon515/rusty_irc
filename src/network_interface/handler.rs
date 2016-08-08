@@ -11,6 +11,7 @@ use std::io::{
 use mio::tcp::{
     TcpListener,
     TcpStream,
+    Shutdown,
 };
 use std::collections::HashMap;
 use logging;
@@ -119,25 +120,56 @@ impl Handler for ServerHandler{
             }
             //CLIENT CONNECTION
             client_token => {
-                logging::log(logging::Level::INFO, &(format!("The event type is: {:?}", events)));
+                logging::log(logging::Level::DEBUG, &(format!("The event type is: {:?}", events)));
+                //client has disconnected so remove them from the list and dont reregister their
+                //event
                 if events.contains(EventSet::hup()){
+                    let zombie_client = self.client_list.remove(&client_token).unwrap();
+                    let ip = zombie_client.peer_addr().unwrap();
+                    match zombie_client.shutdown(Shutdown::Both){
+                        Ok(_) => {
+                            logging::log(logging::Level::INFO, &(format!("Client {:?} has disconnected", ip)));
+                        }
+                        Err(error) => {
+                            logging::log(logging::Level::ERR, &(format!("Client {:?} has not been properly shutdown", ip)));
+                            logging::log(logging::Level::ERR, &(format!("Reason: {:?}", error)));
+                        }
+                    }
                     return;
                 }
                 let mut stream = self.client_list.get_mut(&client_token).unwrap();
-                let mut input_string = String::new();
-                stream.read_to_string(&mut input_string);
-                logging::log(logging::Level::INFO, &input_string);
                 let ip = stream.peer_addr().unwrap();
+                let mut input_bytes = Vec::new();
+                //since it's a non-blocking socket an err is almost always returned so I demoted
+                //this to debug and idk what to do with ok
+                match stream.read_to_end(&mut input_bytes){
+                    Ok(_) => {
+                        logging::log(logging::Level::DEBUG, "You'll probably never see this but if you do... hello!");
+                    },
+                    Err(error) => {
+                        logging::log(logging::Level::DEBUG, &(format!("The data from client {:?} was not able to be read (ignore if code 11)", ip)));
+                        logging::log(logging::Level::DEBUG, &(format!("Reason: {:?}", error)));
+                    }
+                };
+                match String::from_utf8(input_bytes){
+                    Ok(input_string) => {
+                        logging::log(logging::Level::DEBUG, &input_string);
+                    },
+                    Err(error) => {
+                        logging::log(logging::Level::DEBUG, &(format!("input from {:?} was not utf8 complient", ip)));
+                        logging::log(logging::Level::DEBUG, &(format!("Reason: {:?}", error)));
+                    }
+                }
                 match event_loop.reregister(stream,
                                           client_token, 
                                           EventSet::readable() | EventSet::hup(), 
                                           PollOpt::edge() | PollOpt::oneshot()){
                     Ok(_)=>{
-                        logging::log(logging::Level::INFO, &(format!("client with IP Address {:?} has been reregistered", ip)));
+                        logging::log(logging::Level::DEBUG, &(format!("client with IP Address {:?} has been reregistered", ip)));
                     }
-                    Err(x)=>{
+                    Err(error)=>{
                         logging::log(logging::Level::ERR, &(format!("Unable to reregister client {:?}", ip)));
-                        logging::log(logging::Level::ERR, &(format!("Reason: {:?}", x)));
+                        logging::log(logging::Level::ERR, &(format!("Reason: {:?}", error)));
                     }
                 };
             }
