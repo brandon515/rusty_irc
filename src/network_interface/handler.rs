@@ -48,6 +48,9 @@ impl ServerHandler{
 impl Handler for ServerHandler{
     type Timeout = u32;
     type Message = u32;
+    
+    fn notify(&mut self, event_loop: &mut EventLoop<Self>, msg: Self::Message){
+    }
     fn ready(&mut self, event_loop: &mut EventLoop<Self>, token: Token, events:EventSet){
         match token{
             //mainly new clients are connecting
@@ -147,8 +150,18 @@ impl Handler for ServerHandler{
                         logging::log(logging::Level::DEBUG, "You'll probably never see this but if you do... hello!");
                     },
                     Err(error) => {
-                        logging::log(logging::Level::DEBUG, &(format!("The data from client {:?} was not able to be read (ignore if code 11)", ip)));
-                        logging::log(logging::Level::DEBUG, &(format!("Reason: {:?}", error)));
+                        match error.raw_os_error(){
+                            Some(no) =>{
+                                if no != 11{
+                                    logging::log(logging::Level::ERR, &(format!("The data from client {:?} was not able to be read", ip)));
+                                    logging::log(logging::Level::ERR, &(format!("Reason: {:?}", error)));
+                                }
+                            },
+                            None =>{
+                                logging::log(logging::Level::ERR, &(format!("The data from client {:?} was not able to be read", ip)));
+                                logging::log(logging::Level::ERR, &(format!("Reason: {:?}", error)));
+                            }
+                        }
                     }
                 };
                 match String::from_utf8(input_bytes){

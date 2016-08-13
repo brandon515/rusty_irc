@@ -31,7 +31,7 @@ pub fn log(err_level: Level, err_str: &str){
             match log_section.get("error"){
                 Some(val) => {
                     if val == "true"{
-                        lvl_str = "[ERROR]".to_string();
+                        lvl_str.push_str("[ERROR]");
                     }else{
                         return;
                     }
@@ -45,7 +45,7 @@ pub fn log(err_level: Level, err_str: &str){
             match log_section.get("info"){
                 Some(val) => {
                     if val == "true"{
-                        lvl_str = "[INFO]".to_string();
+                        lvl_str.push_str("[INFO]");
                     }else{
                         return;
                     }
@@ -59,7 +59,7 @@ pub fn log(err_level: Level, err_str: &str){
             match log_section.get("debug"){
                 Some(val) => {
                     if val == "true"{
-                        lvl_str = "[DEBUG]".to_string();
+                        lvl_str.push_str("[DEBUG]");
                     }else{
                         return;
                     }
