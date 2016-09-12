@@ -15,11 +15,16 @@ use mio::tcp::{
 };
 use std::collections::HashMap;
 use logging;
+use network_interface::{
+    message,
+    user,
+};
 
 const SERVER_TOKEN: Token = Token(0);
 
 pub struct ServerHandler{
-    client_list: HashMap<Token, TcpStream>,
+    client_list: HashMap<Token, user::Client>,
+    channels: HashMap<String, std::vec::Vec<Token>>,
     socket: TcpListener,
     token_counter: usize,
 }
@@ -39,6 +44,7 @@ impl ServerHandler{
         let server_listener = TcpListener::bind(&addr).unwrap();
         ServerHandler{
             client_list: HashMap::new(),
+            channels: HashMap::new(),
             socket: server_listener,
             token_counter: 1,
         }
@@ -47,9 +53,34 @@ impl ServerHandler{
 
 impl Handler for ServerHandler{
     type Timeout = u32;
-    type Message = u32;
+    type Message = message::Message;
     
     fn notify(&mut self, event_loop: &mut EventLoop<Self>, msg: Self::Message){
+        match msg{
+            QUIT =>{
+                event_loop.shutdown();
+            },
+            KICK(chan, who) =>{
+                match self.channels.get_mut(chan){
+                    Some(x) =>{
+                        //
+                    }
+                    None =>{
+                        //
+                    }
+                }
+            },
+            JOIN(chan, who) =>{
+                match self.channels.get_mut(chan){
+                    Some(x) =>{
+                        //
+                    }
+                    None =>{
+                        //
+                    }
+                }
+            },
+        }
     }
     fn ready(&mut self, event_loop: &mut EventLoop<Self>, token: Token, events:EventSet){
         match token{
@@ -87,12 +118,12 @@ impl Handler for ServerHandler{
                     new_token = Token(self.token_counter);
                 }
                 //register a new client and tell someone if we're kicking someone out
-                match self.client_list.insert(new_token.clone(), sock){
+                match self.client_list.insert(new_token.clone(), user::Client::new(sock, ip.to_string())){
                     //reset with an old used token this shouldn't happen unless the buffer is full
                     Some(old_value) => {
-                        let info_string = format!("Client with the IP Address {:?} has been disconnected, buffer overflow", old_value.peer_addr());
+                        let info_string = format!("Client with the IP Address {:?} has been disconnected, buffer overflow", old_value.socket.peer_addr());
                         logging::log(logging::Level::INFO, &info_string);
-                        match event_loop.deregister(&old_value){
+                        match event_loop.deregister(&old_value.socket){
                             Ok(_) =>{
                                 logging::log(logging::Level::INFO, "Old client has been deregistered");
                             },
@@ -108,7 +139,7 @@ impl Handler for ServerHandler{
                     }
                 };
                 //new client registration
-                match event_loop.register(self.client_list.get(&new_token).unwrap(), 
+                match event_loop.register(&self.client_list.get(&new_token).unwrap().socket, 
                                           new_token, 
                                           EventSet::readable() | EventSet::hup(), 
                                           PollOpt::edge() | PollOpt::oneshot()){
@@ -128,8 +159,8 @@ impl Handler for ServerHandler{
                 //event
                 if events.contains(EventSet::hup()){
                     let zombie_client = self.client_list.remove(&client_token).unwrap();
-                    let ip = zombie_client.peer_addr().unwrap();
-                    match zombie_client.shutdown(Shutdown::Both){
+                    let ip = zombie_client.socket.peer_addr().unwrap();
+                    match zombie_client.socket.shutdown(Shutdown::Both){
                         Ok(_) => {
                             logging::log(logging::Level::INFO, &(format!("Client {:?} has disconnected", ip)));
                         }
@@ -140,7 +171,7 @@ impl Handler for ServerHandler{
                     }
                     return;
                 }
-                let mut stream = self.client_list.get_mut(&client_token).unwrap();
+                let ref mut stream = self.client_list.get_mut(&client_token).unwrap().socket;
                 let ip = stream.peer_addr().unwrap();
                 let mut input_bytes = Vec::new();
                 //since it's a non-blocking socket an err is almost always returned so I demoted
@@ -164,15 +195,17 @@ impl Handler for ServerHandler{
                         }
                     }
                 };
-                match String::from_utf8(input_bytes){
+                let in_str = match String::from_utf8(input_bytes){
                     Ok(input_string) => {
                         logging::log(logging::Level::DEBUG, &input_string);
+                        input_string
                     },
                     Err(error) => {
                         logging::log(logging::Level::DEBUG, &(format!("input from {:?} was not utf8 complient", ip)));
                         logging::log(logging::Level::DEBUG, &(format!("Reason: {:?}", error)));
+                        "".to_string()
                     }
-                }
+                };
                 match event_loop.reregister(stream,
                                           client_token, 
                                           EventSet::readable() | EventSet::hup(), 
