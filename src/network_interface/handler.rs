@@ -7,16 +7,17 @@ use mio::{
 };
 use std::io::{
     Read,
+    Write,
 };
 use mio::tcp::{
     TcpListener,
     TcpStream,
     Shutdown,
 };
+use irc;
 use std::collections::HashMap;
 use logging;
 use network_interface::{
-    message,
     user,
 };
 
@@ -24,7 +25,7 @@ const SERVER_TOKEN: Token = Token(0);
 
 pub struct ServerHandler{
     client_list: HashMap<Token, user::Client>,
-    channels: HashMap<String, std::vec::Vec<Token>>,
+    channels: HashMap<String, Vec<Token>>,
     socket: TcpListener,
     token_counter: usize,
 }
@@ -49,39 +50,108 @@ impl ServerHandler{
             token_counter: 1,
         }
     }
+
+    fn retrieve_token(&self, username: &str) -> Option<Token>{
+        for (tok, cli) in self.client_list.iter(){
+            if cli.irc_user.name == username{
+                return Some(tok.clone());
+            }
+        }
+        None
+    }
+
+    fn send_message(&mut self, reciever: Token, msg: irc::message::Message) -> Result<(), String>{
+        let mut cli = match self.client_list.get_mut(&reciever){
+            Some(x) => {
+                x
+            },
+            None => {
+                return Err(format!("Tried to send data to client with Token {:?} but the client doesnt exist", reciever.clone()));
+            },
+        };
+        //return the result of the write
+        match cli.socket.write_all(msg.to_string().as_bytes()){
+            Ok(_) => {
+                Ok(())
+            }
+            Err(x) => {
+                Err(format!("Failed to send message with the Error Kind: {:?}", x.kind()))
+            }
+        }
+    }
 }
 
 impl Handler for ServerHandler{
     type Timeout = u32;
-    type Message = message::Message;
+    type Message = irc::message::ServerMessage;
     
     fn notify(&mut self, event_loop: &mut EventLoop<Self>, msg: Self::Message){
         match msg{
-            QUIT =>{
+            irc::message::ServerMessage::QUIT =>{
                 event_loop.shutdown();
             },
-            KICK(chan, who) =>{
-                match self.channels.get_mut(chan){
+            irc::message::ServerMessage::REMOVE(chan, who) =>{
+                let who_token = match self.retrieve_token(&who){
+                    Some(x) => {
+                        x
+                    },
+                    None => {
+                        logging::log(logging::Level::ERR, &(format!("User \"{}\" has disconnected", who)));
+                        return;
+                    },
+                };
+                match self.channels.get_mut(&chan){
                     Some(x) =>{
-                        //
+                        //find out where this guy is
+                        let place = match x.iter().position(|&comp| comp == who_token){
+                            Some(pos) => {
+                                pos
+                            },
+                            None => {
+                                logging::log(logging::Level::ERR, &(format!("User \"{}\" is not in the channel named {}", who, chan)));
+                                return;
+                            },
+                        };
+
+                        logging::log(logging::Level::INFO,&(format!("User \"{}\" has been removed from the channel \"{}\"", who, chan)));
+                        let user = x.remove(place);
                     }
                     None =>{
-                        //
+                        logging::log(logging::Level::ERR, &(format!("attempt to remove user \"{}\" from a non-existant channel", who)));
                     }
-                }
+                };
             },
-            JOIN(chan, who) =>{
-                match self.channels.get_mut(chan){
-                    Some(x) =>{
-                        //
-                    }
-                    None =>{
-                        //
-                    }
-                }
+            irc::message::ServerMessage::ADD(chan, who) =>{
+                //get token from username
+                let who_token = match self.retrieve_token(&who){
+                    Some(x) => {
+                        x
+                    },
+                    None => {
+                        logging::log(logging::Level::ERR, &(format!("User \"{}\" has disconnected", who.clone())));
+                        return;
+                    },
+                };
+                //get the vector of the channel 
+                let ent_chan = self.channels.entry(chan).or_insert(Vec::new());
+                ent_chan.push(who_token);
+            },
+            irc::message::ServerMessage::DISCON(who) => {
+                //
+            },
+            irc::message::ServerMessage::SERVMSG(what) => {
+                //
+            },
+            irc::message::ServerMessage::CHANMSG(who, what) => {
+                //
+            },
+            irc::message::ServerMessage::USERMSG(who, what) => {
+                //
             },
         }
     }
+
+
     fn ready(&mut self, event_loop: &mut EventLoop<Self>, token: Token, events:EventSet){
         match token{
             //mainly new clients are connecting

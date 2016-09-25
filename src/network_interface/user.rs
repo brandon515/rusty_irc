@@ -5,7 +5,7 @@ use mio::tcp::{
 
 pub struct Client{
     pub socket: TcpStream,
-    irc_user: irc::user::User,
+    pub irc_user: irc::user::User,
 }
 
 impl Client{ 

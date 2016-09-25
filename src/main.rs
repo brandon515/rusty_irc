@@ -8,7 +8,6 @@ use rusty_irc::network_interface::{
 };
 use rusty_irc::{
     logging,
-    irc,
 };
 
 fn main() {

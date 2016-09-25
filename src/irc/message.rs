@@ -1,6 +1,16 @@
 use std::fmt;
 use irc::user;
 
+pub enum ServerMessage{
+    QUIT,
+    REMOVE(String, String),
+    ADD(String, String),
+    DISCON(String),
+    SERVMSG(Message),
+    CHANMSG(String, Message),
+    USERMSG(String, Message),
+}
+
 pub struct Message{
     pub prefix: String,
     pub command: String,

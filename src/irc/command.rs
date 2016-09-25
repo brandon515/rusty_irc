@@ -1,5 +1,10 @@
-use network_interface::handler::ServerMessage;
+use irc::message::{
+    ServerMessage,
+    Message,
+};
+use irc::user::User;
+use std::sync::mpsc::Sender;
 
-pub fn handle(message: irc::message::Message, sender: network_interface::user::User, chan: mio::sender){
+pub fn handle(message: Message, sender: User, chan: Sender<ServerMessage>){
     //
 }
