@@ -132,12 +132,33 @@ impl Handler for ServerHandler{
                         return;
                     },
                 };
-                //get the vector of the channel 
+                //get the vector of the channel btw entry API is ballin
                 let ent_chan = self.channels.entry(chan).or_insert(Vec::new());
                 ent_chan.push(who_token);
             },
             irc::message::ServerMessage::DISCON(who) => {
-                //
+                let who_token = match self.retrieve_token(&who){
+                    Some(x) => {
+                        x
+                    },
+                    None => {
+                        logging::log(logging::Level::ERR, &(format!("User \"{}\" has already been disconnected", who.clone())));
+                        return;
+                    },
+                };
+                'search: for (chan_name, user_list) in self.channels.iter_mut(){
+                    let pos = match user_list.iter().position(|x| *x==who_token){
+                        Some(x) => {
+                            x
+                        },
+                        None => {
+                            //haha
+                            continue 'search;
+                        },
+                    };
+                    let _ = user_list.remove(pos);
+                }
+                let _ = self.client_list.remove(&who_token);
             },
             irc::message::ServerMessage::SERVMSG(what) => {
                 //
