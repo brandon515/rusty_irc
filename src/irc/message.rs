@@ -6,9 +6,9 @@ pub enum ServerMessage{
     REMOVE(String, String),
     ADD(String, String),
     DISCON(String),
-    SERVMSG(Message),
     CHANMSG(String, Message),
-    USERMSG(String, Message),
+    USERNAMEMSG(String, Message),
+    USERTOKENMSG(usize, Message),
 }
 
 pub struct Message{

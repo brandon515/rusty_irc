@@ -9,9 +9,9 @@ use std::io::{
     Read,
     Write,
 };
+use std::thread;
 use mio::tcp::{
     TcpListener,
-    TcpStream,
     Shutdown,
 };
 use irc;
@@ -146,6 +146,7 @@ impl Handler for ServerHandler{
                         return;
                     },
                 };
+                //remove from all channels 
                 'search: for (chan_name, user_list) in self.channels.iter_mut(){
                     let pos = match user_list.iter().position(|x| *x==who_token){
                         Some(x) => {
@@ -158,15 +159,31 @@ impl Handler for ServerHandler{
                     };
                     let _ = user_list.remove(pos);
                 }
+                //remove user from register
                 let _ = self.client_list.remove(&who_token);
             },
-            irc::message::ServerMessage::SERVMSG(what) => {
+            irc::message::ServerMessage::CHANMSG(chan, what) => {
+                let user_list = match self.channels.get(&chan){
+                    Some(x) => {
+                        x
+                    },
+                    None => {
+                        logging::log(logging::Level::ERR, &(format!("channel \"{}\" does not exist", chan.clone())));
+                        return;
+                    },
+                };
+                let user_list_owned = user_list.to_owned();
+                let msg_stream = event_loop.channel();
+                thread::spawn(move ||{
+                    for who in user_list_owned{
+                        msg_stream.send(irc::message::ServerMessage::USERTOKENMSG(who.as_usize(), what));
+                    }
+                });
+            },
+            irc::message::ServerMessage::USERNAMEMSG(who, what) => {
                 //
             },
-            irc::message::ServerMessage::CHANMSG(who, what) => {
-                //
-            },
-            irc::message::ServerMessage::USERMSG(who, what) => {
+            irc::message::ServerMessage::USERTOKENMSG(who, what) => {
                 //
             },
         }
