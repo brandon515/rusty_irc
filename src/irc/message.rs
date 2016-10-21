@@ -11,6 +11,7 @@ pub enum ServerMessage{
     USERTOKENMSG(usize, Message),
 }
 
+#[derive(Clone)]
 pub struct Message{
     pub prefix: String,
     pub command: String,

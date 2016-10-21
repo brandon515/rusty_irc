@@ -174,11 +174,9 @@ impl Handler for ServerHandler{
                 };
                 let user_list_owned = user_list.to_owned();
                 let msg_stream = event_loop.channel();
-                thread::spawn(move ||{
-                    for who in user_list_owned{
-                        msg_stream.send(irc::message::ServerMessage::USERTOKENMSG(who.as_usize(), what));
-                    }
-                });
+                for who in user_list_owned{
+                    msg_stream.send(irc::message::ServerMessage::USERTOKENMSG(who.as_usize(), what.clone()));
+                }
             },
             irc::message::ServerMessage::USERNAMEMSG(who, what) => {
                 //
