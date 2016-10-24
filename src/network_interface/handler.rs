@@ -179,7 +179,27 @@ impl Handler for ServerHandler{
                 }
             },
             irc::message::ServerMessage::USERNAMEMSG(who, what) => {
-                //
+                let user_token = match self.retrieve_token(&who){
+                    Some(x) => {
+                        x
+                    },
+                    None => {
+                        logging::log(Logging::Level::ERR, &(format!("User with the name {} does not exist", who)));
+                        return;
+                    }
+                };
+
+                let msg_stream = event_loop.channel();
+                msg_stream.send(irc::message::ServerMessage::USERTOKENMSG(user_token.as_usize(), what.clone()));
+                match self.send_message(user_token.as_usize(), what.clone()){
+                    Ok(()) => {
+                        logging::log(Logging::Level::DEBUG, &(format!("Message: {}\nReciever: {}", what.clone(), who.clone())));
+                    },
+                    Err(x) => {
+                        logging::log(Logging::Level::ERR, &(format!("{}", x)));
+                        return;
+                    },
+                };
             },
             irc::message::ServerMessage::USERTOKENMSG(who, what) => {
                 //
