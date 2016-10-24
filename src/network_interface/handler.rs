@@ -175,7 +175,15 @@ impl Handler for ServerHandler{
                 let user_list_owned = user_list.to_owned();
                 let msg_stream = event_loop.channel();
                 for who in user_list_owned{
-                    msg_stream.send(irc::message::ServerMessage::USERTOKENMSG(who.as_usize(), what.clone()));
+                    match self.send_message(user_token.as_usize(), what.clone()){
+                        Ok(()) => {
+                            logging::log(Logging::Level::DEBUG, &(format!("Message: {}\nReciever: {}", what.clone(), who.clone())));
+                        },
+                        Err(x) => {
+                            logging::log(Logging::Level::ERR, &(format!("{}", x)));
+                            return;
+                        },
+                    };
                 }
             },
             irc::message::ServerMessage::USERNAMEMSG(who, what) => {
