@@ -210,7 +210,15 @@ impl Handler for ServerHandler{
                 };
             },
             irc::message::ServerMessage::USERTOKENMSG(who, what) => {
-                //
+                match self.send_message(Token(who), what.clone()){
+                    Ok(()) => {
+                        logging::log(logging::Level::DEBUG, &(format!("Message: {}\nReciever: {}", what.clone(), who.clone())));
+                    },
+                    Err(x) => {
+                        logging::log(logging::Level::ERR, &(format!("{}", x)));
+                        return;
+                    },
+                };
             },
         }
     }
