@@ -163,24 +163,24 @@ impl Handler for ServerHandler{
                 let _ = self.client_list.remove(&who_token);
             },
             irc::message::ServerMessage::CHANMSG(chan, what) => {
-                let user_list = match self.channels.get(&chan){
+                let user_list_owned = match self.channels.get(&chan){
                     Some(x) => {
-                        x
+                        x.to_owned()
                     },
                     None => {
                         logging::log(logging::Level::ERR, &(format!("channel \"{}\" does not exist", chan.clone())));
                         return;
                     },
                 };
-                let user_list_owned = user_list.to_owned();
+                //let user_list_owned = user_list.to_owned();
                 let msg_stream = event_loop.channel();
                 for who in user_list_owned{
-                    match self.send_message(user_token.as_usize(), what.clone()){
+                    match self.send_message(who, what.clone()){
                         Ok(()) => {
-                            logging::log(Logging::Level::DEBUG, &(format!("Message: {}\nReciever: {}", what.clone(), who.clone())));
+                            logging::log(logging::Level::DEBUG, &(format!("Message: {}\nReciever: {}", what.clone(), who.as_usize())));
                         },
                         Err(x) => {
-                            logging::log(Logging::Level::ERR, &(format!("{}", x)));
+                            logging::log(logging::Level::ERR, &(format!("{}", x)));
                             return;
                         },
                     };
@@ -192,19 +192,19 @@ impl Handler for ServerHandler{
                         x
                     },
                     None => {
-                        logging::log(Logging::Level::ERR, &(format!("User with the name {} does not exist", who)));
+                        logging::log(logging::Level::ERR, &(format!("User with the name {} does not exist", who)));
                         return;
                     }
                 };
 
                 let msg_stream = event_loop.channel();
                 msg_stream.send(irc::message::ServerMessage::USERTOKENMSG(user_token.as_usize(), what.clone()));
-                match self.send_message(user_token.as_usize(), what.clone()){
+                match self.send_message(user_token, what.clone()){
                     Ok(()) => {
-                        logging::log(Logging::Level::DEBUG, &(format!("Message: {}\nReciever: {}", what.clone(), who.clone())));
+                        logging::log(logging::Level::DEBUG, &(format!("Message: {}\nReciever: {}", what.clone(), who.clone())));
                     },
                     Err(x) => {
-                        logging::log(Logging::Level::ERR, &(format!("{}", x)));
+                        logging::log(logging::Level::ERR, &(format!("{}", x)));
                         return;
                     },
                 };
